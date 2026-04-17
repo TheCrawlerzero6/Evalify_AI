@@ -1,14 +1,23 @@
 services:
-  evalify-ai:
-    build: .
+  backend:
+    build:
+      context: ./backend
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - ./backend/.env
     environment:
       - CHECKPOINT_DB_PATH=/data/comparaciones.db
     volumes:
       - sqlite_data:/data
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
 
 volumes:
   sqlite_data:

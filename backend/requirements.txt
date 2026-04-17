@@ -1,7 +1,9 @@
 fastapi
 uvicorn[standard]
 python-multipart
+python-dotenv
 langgraph==1.1.0
+langgraph-checkpoint-sqlite
 langchain-core==1.2.29
 langchain-community==0.4.1
 langchain-tavily==0.2.17

@@ -1,0 +1,17 @@
+.git
+.gitignore
+.vscode
+.idea
+.env
+env
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+comparaciones.db*
+backend/pdf_test/
+backend/__pycache__
+backend/.pytest_cache
+backend/comparaciones.db*
+frontend/node_modules
+frontend/dist

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Dict, List
 
 import httpx
 
-from app.core.config import TAVILY_SEARCH_ENDPOINT
+from app.config import TAVILY_SEARCH_ENDPOINT
 from app.schemas.domain import SourceRef
+
+logger = logging.getLogger(__name__)
 
 
 def _tavily_search(query: str, max_results: int = 3) -> List[dict]:
@@ -14,17 +17,21 @@ def _tavily_search(query: str, max_results: int = 3) -> List[dict]:
     if not api_key:
         raise ValueError("Falta TAVILY_API_KEY en variables de entorno.")
 
+    logger.debug("Consultando Tavily query=%s max_results=%d", query, max_results)
+
     payload = {
-        "api_key": api_key,
         "query": query,
         "search_depth": "basic",
         "max_results": max_results,
     }
+    headers = {"Authorization": f"Bearer {api_key}"}
     with httpx.Client(timeout=20.0) as client:
-        response = client.post(TAVILY_SEARCH_ENDPOINT, json=payload)
+        response = client.post(TAVILY_SEARCH_ENDPOINT, json=payload, headers=headers)
         response.raise_for_status()
         data = response.json()
-    return data.get("results", [])
+    results = data.get("results", [])
+    logger.debug("Respuesta Tavily resultados=%d", len(results))
+    return results
 
 
 def _normalize_result(result: dict, criterio: str, categoria: str | None = None) -> SourceRef:
@@ -39,6 +46,7 @@ def _normalize_result(result: dict, criterio: str, categoria: str | None = None)
 
 def search_for_criterion(provider_name: str, criterion: str) -> Dict[str, List]:
     criterion = criterion.lower().strip()
+    logger.info("Busqueda por criterio proveedor=%s criterio=%s", provider_name, criterion)
     if criterion == "reputacion":
         queries = {
             "reviews": f"{provider_name} reseñas usuarios opiniones",
@@ -58,8 +66,22 @@ def search_for_criterion(provider_name: str, criterion: str) -> Dict[str, List]:
                     observations.append(f"[{category}] {ref.snippet}")
 
         if observations:
-            summary = " | ".join(observations[:6])
-            return {"observaciones": [summary], "fuentes": sources}
+            deduped_observations: List[str] = []
+            seen = set()
+            for obs in observations:
+                cleaned = obs.strip()
+                if not cleaned or cleaned in seen:
+                    continue
+                seen.add(cleaned)
+                deduped_observations.append(cleaned)
+            logger.info(
+                "Busqueda reputacion completada proveedor=%s observaciones=%d fuentes=%d",
+                provider_name,
+                len(deduped_observations[:6]),
+                len(sources),
+            )
+            return {"observaciones": deduped_observations[:6], "fuentes": sources}
+        logger.info("Busqueda reputacion sin evidencia proveedor=%s", provider_name)
         return {"observaciones": ["Sin evidencia web suficiente para reputación."], "fuentes": []}
 
     query = f"{provider_name} {criterion}"
@@ -76,4 +98,11 @@ def search_for_criterion(provider_name: str, criterion: str) -> Dict[str, List]:
 
     if not observations:
         observations = [f"Sin evidencia web suficiente para {criterion}."]
+    logger.info(
+        "Busqueda criterio completada proveedor=%s criterio=%s observaciones=%d fuentes=%d",
+        provider_name,
+        criterion,
+        len(observations),
+        len(sources),
+    )
     return {"observaciones": observations, "fuentes": sources}
